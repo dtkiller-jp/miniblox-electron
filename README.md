@@ -1,10 +1,10 @@
 # miniblox.io Electron App
 
-miniblox.ioをElectronアプリ化し、ユーザースクリプトを注入できるようにしたアプリケーションです。
+An Electron-based desktop application for miniblox.io with userscript injection support.
 
 ## Features
 
-- Version selector for userscripts
+- Version selector for userscripts with auto-update on startup
 - Custom loading screen with progress tracking
 - Persistent storage for configs and cookies
 - Greasemonkey/Tampermonkey API compatibility
@@ -43,12 +43,12 @@ All platforms:
 npm run build
 ```
 
-ビルドされたファイルは `dist/` フォルダに出力されます。
+Built files will be output to the `dist/` folder.
 
 ## Version Configuration
 
-`versions.json` でバージョンとURLを管理します。
-セレクター画面の更新ボタンで指定のGitHubリンクから最新のバージョンリストを取得できます。
+Manage versions and URLs in `versions.json`.
+The app automatically checks for version updates on startup from the specified GitHub link.
 
 ## Files
 

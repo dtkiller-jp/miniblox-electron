@@ -5,21 +5,41 @@ let versionsData = null;
 async function loadVersions() {
   try {
     versionsData = await window.electronAPI.getVersions();
-    const select = document.getElementById('version-select');
-    select.innerHTML = '';
-    
-    versionsData.versions.forEach((version, index) => {
-      const option = document.createElement('option');
-      option.value = index;
-      option.textContent = version.name;
-      select.appendChild(option);
-    });
-    
-    if (versionsData.versions.length > 0) {
-      select.selectedIndex = 0;
-    }
+    updateVersionSelect();
   } catch (error) {
     showStatus('Failed to load versions', 'error');
+  }
+}
+
+// Update version select dropdown
+function updateVersionSelect() {
+  const select = document.getElementById('version-select');
+  select.innerHTML = '';
+  
+  versionsData.versions.forEach((version, index) => {
+    const option = document.createElement('option');
+    option.value = index;
+    option.textContent = version.name;
+    select.appendChild(option);
+  });
+  
+  if (versionsData.versions.length > 0) {
+    select.selectedIndex = 0;
+  }
+}
+
+// Auto-update versions on startup
+async function autoUpdateVersions() {
+  try {
+    const result = await window.electronAPI.updateVersions(versionsData.updateUrl);
+    
+    if (result.success) {
+      versionsData = result.data;
+      updateVersionSelect();
+      console.log('Versions updated successfully');
+    }
+  } catch (error) {
+    console.log('Auto-update failed, using cached versions');
   }
 }
 
@@ -56,4 +76,7 @@ document.getElementById('launch-btn').addEventListener('click', async () => {
 });
 
 // Initialize
-loadVersions();
+loadVersions().then(() => {
+  // Auto-update versions in background
+  autoUpdateVersions();
+});
