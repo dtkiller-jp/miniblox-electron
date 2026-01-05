@@ -9,17 +9,17 @@ let selectedVersion = null;
 
 // Default version data
 const defaultVersions = {
-  versions: [
+  "versions": [
     {
-      name: "Impact v6 main",
-      url: "https://raw.githubusercontent.com/ProgMEM-CC/miniblox.impact.client.updatedv2/refs/heads/main/vav4inject.js"
+      "name": "Impact v6 main",
+      "url": "https://raw.githubusercontent.com/ProgMEM-CC/miniblox.impact.client.updatedv2/refs/heads/main/vav4inject.js"
     },
     {
-      name: "dynamic-island test",
-      url: "https://raw.githubusercontent.com/ProgMEM-CC/miniblox.impact.client.updatedv2/refs/heads/dynamic-island/vav4inject.js"
+      "name": "local test (127.0.0.1/vav4inject.js)",
+      "url": "http://127.0.0.1:5500/vav4inject.js"
     }
   ],
-  updateUrl: "https://raw.githubusercontent.com/example/userscripts/main/versions.json"
+  "updateUrl": "https://raw.githubusercontent.com/dtkiller-jp/miniblox-electron/refs/heads/main/versions.json"
 };
 
 function loadVersions() {
