@@ -2,34 +2,60 @@
 
 miniblox.ioをElectronアプリ化し、ユーザースクリプトを注入できるようにしたアプリケーションです。
 
-## 機能
+## Features
 
-- バージョンセレクターでユーザースクリプトのバージョンを選択
-- GitHubからバージョンリストを更新
-- 選択したユーザースクリプトをminiblox.ioに注入して起動
+- Version selector for userscripts
+- Custom loading screen with progress tracking
+- Persistent storage for configs and cookies
+- Greasemonkey/Tampermonkey API compatibility
 
-## セットアップ
+## Setup
 
 ```bash
 npm install
 ```
 
-## 実行
+## Development
 
 ```bash
 npm start
 ```
 
-## バージョン設定
+## Build
 
-`versions.json`ファイルでバージョンとURLを管理します。
-更新ボタンで指定のGitHubリンクから最新のバージョンリストを取得できます。
+Windows:
+```bash
+npm run build:win
+```
 
-## 構成
+Mac:
+```bash
+npm run build:mac
+```
 
-- `main.js` - メインプロセス
-- `selector.html` - バージョンセレクターUI
-- `selector-renderer.js` - セレクターのレンダラープロセス
-- `selector-preload.js` - セレクター用プリロードスクリプト
-- `preload.js` - メインウィンドウ用プリロードスクリプト（ユーザースクリプト注入）
-- `versions.json` - バージョン設定ファイル
+Linux:
+```bash
+npm run build:linux
+```
+
+All platforms:
+```bash
+npm run build
+```
+
+ビルドされたファイルは `dist/` フォルダに出力されます。
+
+## Version Configuration
+
+`versions.json` でバージョンとURLを管理します。
+セレクター画面の更新ボタンで指定のGitHubリンクから最新のバージョンリストを取得できます。
+
+## Files
+
+- `main.js` - Main process
+- `selector.html` - Version selector UI
+- `selector-renderer.js` - Selector renderer process
+- `selector-preload.js` - Selector preload script
+- `loading.html` - Custom loading screen
+- `preload.js` - Main window preload script (userscript injection)
+- `versions.json` - Version configuration file
