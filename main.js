@@ -49,7 +49,7 @@ function saveVersions(data) {
 function createSelectorWindow() {
   selectorWindow = new BrowserWindow({
     width: 450,
-    height: 150,
+    height: 200,
     resizable: false,
     webPreferences: {
       nodeIntegration: false,
@@ -91,9 +91,26 @@ function createMainWindow(scriptUrl) {
         fs.writeFileSync(tempScriptPath, scriptContent, 'utf8');
         console.log('Script saved to:', tempScriptPath);
         
+        // Create loading window
+        const loadingWindow = new BrowserWindow({
+          width: 600,
+          height: 300,
+          frame: false,
+          transparent: true,
+          alwaysOnTop: true,
+          webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+          }
+        });
+        
+        loadingWindow.loadFile('loading.html');
+        
+        // Create main window (hidden initially)
         mainWindow = new BrowserWindow({
           width: 1280,
           height: 720,
+          show: false,
           webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
@@ -101,7 +118,40 @@ function createMainWindow(scriptUrl) {
             preload: path.join(__dirname, 'preload.js'),
             additionalArguments: [`--userscript-path=${tempScriptPath}`],
             sandbox: false,
-            partition: 'persist:miniblox' // Use persistent partition for cookies/localStorage
+            partition: 'persist:miniblox'
+          }
+        });
+
+        let loadingProgress = 0;
+        
+        // Monitor console messages for loading progress
+        mainWindow.webContents.on('console-message', (event, level, message) => {
+          console.log('Console:', message);
+          
+          if (message.includes('Loading textures')) {
+            loadingProgress = 33;
+            loadingWindow.webContents.send('loading-progress', {
+              progress: loadingProgress,
+              status: 'Loading textures...'
+            });
+          } else if (message.includes('Initializing graphics')) {
+            loadingProgress = 66;
+            loadingWindow.webContents.send('loading-progress', {
+              progress: loadingProgress,
+              status: 'Initializing graphics...'
+            });
+          } else if (message.includes('Initialized game')) {
+            loadingProgress = 100;
+            loadingWindow.webContents.send('loading-progress', {
+              progress: loadingProgress,
+              status: 'Ready!'
+            });
+            
+            // Show main window and close loading window
+            setTimeout(() => {
+              mainWindow.show();
+              loadingWindow.close();
+            }, 500);
           }
         });
 
@@ -111,6 +161,9 @@ function createMainWindow(scriptUrl) {
         mainWindow.on('closed', () => {
           console.log('Main window closed');
           mainWindow = null;
+          if (loadingWindow && !loadingWindow.isDestroyed()) {
+            loadingWindow.close();
+          }
           // Clean up temp file
           try {
             if (fs.existsSync(tempScriptPath)) {
@@ -123,10 +176,20 @@ function createMainWindow(scriptUrl) {
         
         mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
           console.error('Failed to load:', errorCode, errorDescription);
+          loadingWindow.webContents.send('loading-progress', {
+            progress: 0,
+            status: 'Failed to load'
+          });
         });
         
         mainWindow.webContents.on('did-finish-load', () => {
           console.log('Page loaded successfully');
+          if (loadingProgress === 0) {
+            loadingWindow.webContents.send('loading-progress', {
+              progress: 10,
+              status: 'Page loaded...'
+            });
+          }
         });
         
         mainWindow.webContents.on('crashed', (event, killed) => {
