@@ -45,6 +45,17 @@ npm run build
 
 Built files will be output to the `dist/` folder.
 
+## Antivirus False Positives
+
+If your antivirus (McAfee, Windows Defender, etc.) flags the installer:
+
+1. **This is a false positive** - The app is not signed with a code signing certificate (costs $300+/year)
+2. **Safe to use** - All source code is available in this repository
+3. **To install:**
+   - Add an exception in your antivirus for the installer
+   - Or temporarily disable real-time protection during installation
+   - Windows SmartScreen: Click "More info" → "Run anyway"
+
 ## Version Configuration
 
 Manage versions and URLs in `versions.json`.

@@ -1,6 +1,6 @@
 {
   "name": "miniblox-app",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "miniblox.io Electron App with userscript injection",
   "main": "main.js",
   "scripts": {
@@ -35,20 +35,31 @@
     ],
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
       ],
-      "icon": "icon.ico"
+      "requestedExecutionLevel": "asInvoker",
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Miniblox Impact",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
     },
     "mac": {
-      "target": "dmg",
-      "icon": "icon.icns"
+      "target": "dmg"
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
-      ],
-      "icon": "icon.png"
+      ]
     }
   }
 }
