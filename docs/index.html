@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Miniblox Impact v6 - Desktop Client</title>
+  <meta name="description" content="Desktop client for miniblox.io with advanced userscript support">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html {
+      scroll-behavior: smooth;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      line-height: 1.6;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    header {
+      text-align: center;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      padding: 0 20px;
+    }
+    
+    .header-content {
+      margin-bottom: 80px;
+    }
+    
+    h1 {
+      font-size: 64px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #00ff88 0%, #00ccff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+      animation: fadeInUp 1s ease-out;
+    }
+    
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .subtitle {
+      font-size: 20px;
+      color: #888;
+      margin-bottom: 30px;
+      animation: fadeInUp 1s ease-out 0.2s both;
+    }
+    
+    .badges {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      animation: fadeInUp 1s ease-out 0.4s both;
+    }
+    
+    .badge {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      color: #aaa;
+    }
+    
+    .scroll-indicator {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      animation: bounce 2s infinite;
+      color: #666;
+      font-size: 24px;
+      transition: opacity 0.5s ease;
+    }
+    
+    .scroll-indicator.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    
+    @keyframes bounce {
+      0%, 20%, 50%, 80%, 100% {
+        transform: translateX(-50%) translateY(0);
+      }
+      40% {
+        transform: translateX(-50%) translateY(-10px);
+      }
+      60% {
+        transform: translateX(-50%) translateY(-5px);
+      }
+    }
+    
+    .fade-in-section {
+      opacity: 0;
+      transform: translateY(50px);
+      transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+    }
+    
+    .fade-in-section.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    .content-wrapper {
+      padding: 0 20px 60px 20px;
+    }
+    
+    .download-section {
+      background: linear-gradient(135deg, #141414 0%, #0f0f0f 100%);
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 40px;
+      margin-bottom: 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .download-section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #00ff88, #00ccff, transparent);
+    }
+    
+    .download-btn {
+      display: inline-block;
+      padding: 18px 56px;
+      background: linear-gradient(135deg, #00ff88 0%, #00ccff 100%);
+      color: #000;
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+    }
+    
+    .download-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 30px rgba(0, 255, 136, 0.5);
+    }
+    
+    .version-info {
+      margin-top: 16px;
+      color: #666;
+      font-size: 14px;
+    }
+    
+    .platform-links {
+      margin-top: 16px;
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    
+    .platform-link {
+      color: #00ccff;
+      text-decoration: none;
+      font-size: 13px;
+      padding: 6px 14px;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    
+    .platform-link:hover {
+      border-color: #00ccff;
+      background: rgba(0, 204, 255, 0.1);
+    }
+    
+    .content-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 30px;
+      margin-bottom: 40px;
+    }
+    
+    .card {
+      background: #141414;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 30px;
+      transition: transform 0.3s ease, border-color 0.3s ease;
+    }
+    
+    .card:hover {
+      transform: translateY(-5px);
+      border-color: #00ff88;
+    }
+    
+    .card h2 {
+      color: #fff;
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+    
+    .feature-list {
+      list-style: none;
+      padding: 0;
+    }
+    
+    .feature-list li {
+      padding: 10px 0;
+      padding-left: 28px;
+      position: relative;
+      color: #aaa;
+      font-size: 14px;
+    }
+    
+    .feature-list li:before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: #00ff88;
+      font-weight: bold;
+      font-size: 16px;
+    }
+    
+    .step-list {
+      list-style: none;
+      padding: 0;
+    }
+    
+    .step-list li {
+      padding: 8px 0;
+      padding-left: 28px;
+      position: relative;
+      color: #aaa;
+      font-size: 14px;
+    }
+    
+    .step-list li:before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: #00ff88;
+    }
+    
+    .link-section {
+      background: #141414;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 40px;
+      text-align: center;
+    }
+    
+    .link-section h2 {
+      color: #fff;
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+    
+    .link-btn {
+      display: inline-block;
+      padding: 12px 28px;
+      background: #1a1a1a;
+      border: 1px solid #00ccff;
+      color: #00ccff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      margin: 6px;
+    }
+    
+    .link-btn:hover {
+      background: rgba(0, 204, 255, 0.1);
+      transform: translateY(-2px);
+    }
+    
+    footer {
+      text-align: center;
+      margin-top: 60px;
+      padding-top: 30px;
+      border-top: 1px solid #2a2a2a;
+      color: #666;
+      font-size: 14px;
+    }
+    
+    footer a {
+      color: #00ccff;
+      text-decoration: none;
+    }
+    
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-content">
+        <h1>Impact v6</h1>
+        <p class="subtitle">The ultimate desktop client for miniblox.io</p>
+        <div class="badges">
+          <span class="badge">🚀 Fast & Lightweight</span>
+          <span class="badge">�e Secure</span>
+          <span class="badge">💾 Persistent Storage</span>
+          <span class="badge">🌐 Cross-Platform</span>
+        </div>
+      </div>
+      <div class="scroll-indicator" id="scrollIndicator">↓</div>
+    </header>
+    
+    <div class="content-wrapper">
+      <div class="download-section fade-in-section">
+      <h2 style="color: #fff; margin-bottom: 20px; font-size: 26px;">Download Now</h2>
+      <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/releases/latest" class="download-btn">Download for Windows</a>
+      <p class="version-info">Latest version: v1.0.0 | Windows 10/11 (x64)</p>
+      <div class="platform-links">
+        <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/releases" class="platform-link">All Releases</a>
+        <a href="https://github.com/YOUR_USERNAME/YOUR_REPO" class="platform-link">GitHub</a>
+      </div>
+    </div>
+    
+    <div class="content-grid fade-in-section">
+      <div class="card">
+        <h2>Features</h2>
+        <ul class="feature-list">
+          <li>Version selector with auto-update</li>
+          <li>Custom loading screen</li>
+          <li>Persistent configs & cookies</li>
+          <li>GM API compatibility</li>
+          <li>Windows, Mac & Linux support</li>
+          <li>Secure & lightweight</li>
+        </ul>
+      </div>
+      
+      <div class="card">
+        <h2>Quick Start</h2>
+        <ul class="step-list">
+          <li>Download the installer</li>
+          <li>Run and install the app</li>
+          <li>Launch from Start Menu</li>
+          <li>Select userscript version</li>
+          <li>Click Launch and enjoy!</li>
+        </ul>
+      </div>
+      
+      <div class="card">
+        <h2>System Requirements</h2>
+        <ul class="feature-list">
+          <li>Windows 10/11 (64-bit)</li>
+          <li>macOS 10.13 or later</li>
+          <li>Ubuntu 18.04 or later</li>
+          <li>4 GB RAM minimum</li>
+          <li>200 MB free storage</li>
+          <li>Internet connection</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="link-section fade-in-section">
+      <h2>Impact Client Resources</h2>
+      <p style="color: #aaa; margin-bottom: 20px;">Official userscript repository and documentation</p>
+      <a href="https://impactminiblox.js.org/" class="link-btn">Visit Impact Client Site</a>
+      <a href="https://github.com/ProgMEM-CC/miniblox.impact.client.updatedv2" class="link-btn">View on GitHub</a>
+    </div>
+    
+      <footer class="fade-in-section">
+        <p>&copy; 2025 Miniblox Impact. All rights reserved.</p>
+        <p style="margin-top: 8px;">
+          <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/issues">Report Issues</a> • 
+          <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/releases">Changelog</a>
+        </p>
+      </footer>
+    </div>
+  </div>
+  
+  <script>
+    // Scroll animation observer
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -100px 0px'
+    };
+    
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, observerOptions);
+    
+    // Observe all fade-in sections
+    document.querySelectorAll('.fade-in-section').forEach(section => {
+      observer.observe(section);
+    });
+    
+    // Hide scroll indicator on scroll
+    const scrollIndicator = document.getElementById('scrollIndicator');
+    let scrollTimeout;
+    
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 100) {
+        scrollIndicator.classList.add('hidden');
+      } else {
+        scrollIndicator.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
