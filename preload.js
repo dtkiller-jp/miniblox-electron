@@ -60,29 +60,54 @@ if (scriptPathArg) {
       }
     };
     
+    // Inject GM API once at the beginning
     const gmApi = `(function(){if(!window.GM){const p='gm_';window.GM={getValue:(k,d)=>{try{const v=localStorage.getItem(p+k);return v!==null?JSON.parse(v):d}catch(e){return d}},setValue:(k,v)=>{try{localStorage.setItem(p+k,JSON.stringify(v));return Promise.resolve()}catch(e){return Promise.reject(e)}},deleteValue:(k)=>{try{localStorage.removeItem(p+k);return Promise.resolve()}catch(e){return Promise.reject(e)}},listValues:()=>{try{const k=[];for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(key&&key.startsWith(p))k.push(key.substring(p.length))}return Promise.resolve(k)}catch(e){return Promise.reject(e)}},xmlHttpRequest:(d)=>new Promise((res,rej)=>{const x=new XMLHttpRequest();x.open(d.method||'GET',d.url);if(d.headers)Object.keys(d.headers).forEach(k=>x.setRequestHeader(k,d.headers[k]));x.onload=()=>{const r={status:x.status,statusText:x.statusText,responseText:x.responseText,responseHeaders:x.getAllResponseHeaders()};if(d.onload)d.onload(r);res(r)};x.onerror=()=>{if(d.onerror)d.onerror(x);rej(x)};x.send(d.data)}),info:{script:{name:'Userscript'},scriptHandler:'Electron',version:'1.0'}};window.GM_getValue=GM.getValue;window.GM_setValue=(k,v)=>GM.setValue(k,v);window.GM_deleteValue=(k)=>GM.deleteValue(k);window.GM_listValues=GM.listValues;window.GM_xmlhttpRequest=GM.xmlHttpRequest;window.GM_info=GM.info;window.unsafeWindow=window}})();`;
+    
+    let gmApiInjected = false;
     
     const scriptsByTiming = { 'document-start': [], 'document-body': [], 'document-end': [], 'document-idle': [] };
     scriptsWithMetadata.forEach(s => scriptsByTiming[s.metadata.runAt].push(s));
     
-    const inject = (scripts) => scripts.forEach(s => { injectScript(gmApi); injectScript(s.content); });
+    const inject = (scripts) => {
+      if (!gmApiInjected) {
+        injectScript(gmApi);
+        gmApiInjected = true;
+      }
+      scripts.forEach(s => injectScript(s.content));
+    };
     
+    // For document-start scripts, wait for body to be available
+    // This ensures DOM manipulation scripts can work properly
     if (scriptsByTiming['document-start'].length > 0) {
-      const waitAndInject = () => {
+      const waitForBody = () => {
+        if (document.body) {
+          inject(scriptsByTiming['document-start']);
+        } else {
+          const obs = new MutationObserver(() => {
+            if (document.body) {
+              obs.disconnect();
+              inject(scriptsByTiming['document-start']);
+            }
+          });
+          obs.observe(document.documentElement || document, { childList: true, subtree: true });
+        }
+      };
+      
+      if (document.readyState === 'loading') {
         if (document.documentElement && document.head) {
-          // Wait a bit more to ensure DOM is more ready
-          setTimeout(() => inject(scriptsByTiming['document-start']), 10);
+          waitForBody();
         } else {
           const obs = new MutationObserver(() => {
             if (document.documentElement && document.head) {
               obs.disconnect();
-              setTimeout(() => inject(scriptsByTiming['document-start']), 10);
+              waitForBody();
             }
           });
           obs.observe(document, { childList: true, subtree: true });
         }
-      };
-      waitAndInject();
+      } else {
+        waitForBody();
+      }
     }
     
     if (scriptsByTiming['document-body'].length > 0) {

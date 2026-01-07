@@ -26,6 +26,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "loading-preload.js",
       "selector-preload.js",
       "selector-renderer.js",
       "selector.html",

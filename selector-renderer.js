@@ -77,6 +77,9 @@ function renderGames() {
   gameList.innerHTML = '';
   
   appState.games.forEach(game => {
+    const container = document.createElement('div');
+    container.style.position = 'relative';
+    
     const btn = document.createElement('button');
     btn.className = 'game-btn';
     btn.textContent = game.name;
@@ -84,8 +87,59 @@ function renderGames() {
       btn.classList.add('active');
     }
     btn.onclick = () => selectGame(game.id);
-    gameList.appendChild(btn);
+    
+    // Add delete button (only for non-default games or if there are more than 1 game)
+    if (appState.games.length > 1) {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'game-delete-btn';
+      deleteBtn.innerHTML = '×';
+      deleteBtn.title = 'Delete game';
+      deleteBtn.onclick = (e) => {
+        e.stopPropagation();
+        deleteGame(game.id);
+      };
+      container.appendChild(deleteBtn);
+    }
+    
+    container.appendChild(btn);
+    gameList.appendChild(container);
   });
+}
+
+// Delete game
+async function deleteGame(gameId) {
+  const game = appState.games.find(g => g.id === gameId);
+  
+  if (!game) return;
+  
+  if (!confirm(`Are you sure you want to delete "${game.name}"?\nAll associated profiles will also be deleted.`)) {
+    return;
+  }
+  
+  try {
+    const result = await window.electronAPI.deleteGame(gameId);
+    
+    if (result.success) {
+      // Update local state
+      appState.games = appState.games.filter(g => g.id !== gameId);
+      delete appState.profiles[gameId];
+      
+      // If deleted game was selected, switch to first available game
+      if (appState.currentGame === gameId) {
+        appState.currentGame = appState.games[0]?.id || null;
+        appState.currentProfile = 'default';
+      }
+      
+      renderGames();
+      renderProfiles();
+      updateProfileSelect();
+      updateGameTitle();
+    } else {
+      alert(result.error || 'Failed to delete game');
+    }
+  } catch (error) {
+    alert('Delete error: ' + error.message);
+  }
 }
 
 // Select game
@@ -150,6 +204,16 @@ function renderProfiles() {
     const actionsDiv = document.createElement('div');
     actionsDiv.className = 'profile-item-actions';
     
+    // Export button
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'btn btn-small';
+    exportBtn.textContent = 'Export';
+    exportBtn.onclick = (e) => {
+      e.stopPropagation();
+      exportProfile(profileId);
+    };
+    actionsDiv.appendChild(exportBtn);
+    
     if (!profile.locked) {
       const renameBtn = document.createElement('button');
       renameBtn.className = 'btn btn-small';
@@ -174,6 +238,30 @@ function renderProfiles() {
     item.appendChild(actionsDiv);
     profileList.appendChild(item);
   });
+}
+
+// Export profile
+async function exportProfile(profileId) {
+  try {
+    const result = await window.electronAPI.exportProfile(appState.currentGame, profileId);
+    
+    if (result.success) {
+      // Create a download link
+      const blob = new Blob([result.data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `profile-${profileId}-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      alert(result.error || 'Failed to export profile');
+    }
+  } catch (error) {
+    alert('Export error: ' + error.message);
+  }
 }
 
 // View profile detail
@@ -230,7 +318,7 @@ function renderUserscripts() {
   scriptList.innerHTML = '';
   
   if (!appState.viewingProfile) {
-    scriptList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">Select a profile to view scripts</div>';
+    scriptList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">プロファイルを選択してスクリプトを表示</div>';
     return;
   }
   
@@ -238,7 +326,7 @@ function renderUserscripts() {
   const profile = gameProfiles[appState.viewingProfile];
   
   if (!profile || !profile.scripts || profile.scripts.length === 0) {
-    scriptList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">No scripts available</div>';
+    scriptList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">スクリプトがありません</div>';
     return;
   }
   
@@ -248,7 +336,7 @@ function renderUserscripts() {
     
     const name = document.createElement('div');
     name.className = 'userscript-name';
-    name.textContent = script.name || `Script ${index + 1}`;
+    name.textContent = script.name || `スクリプト ${index + 1}`;
     
     const actions = document.createElement('div');
     actions.className = 'userscript-actions';
@@ -256,27 +344,27 @@ function renderUserscripts() {
     if (script.updateUrl) {
       const updateBtn = document.createElement('button');
       updateBtn.className = 'btn btn-small';
-      updateBtn.textContent = 'Update';
+      updateBtn.textContent = '更新';
       updateBtn.onclick = () => updateScript(index);
       actions.appendChild(updateBtn);
     }
     
     const editBtn = document.createElement('button');
     editBtn.className = 'btn btn-small';
-    editBtn.textContent = 'Edit';
+    editBtn.textContent = '編集';
     editBtn.onclick = () => editScript(index);
     actions.appendChild(editBtn);
     
     const renameBtn = document.createElement('button');
     renameBtn.className = 'btn btn-small';
-    renameBtn.textContent = 'Rename';
+    renameBtn.textContent = '名前変更';
     renameBtn.onclick = () => renameScript(index);
     actions.appendChild(renameBtn);
     
     if (!profile.locked) {
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'btn btn-small';
-      deleteBtn.textContent = 'Delete';
+      deleteBtn.textContent = '削除';
       deleteBtn.onclick = () => deleteScript(index);
       actions.appendChild(deleteBtn);
     }
@@ -350,13 +438,17 @@ async function launchGame() {
   }
   
   try {
-    await window.electronAPI.launchGame({
+    const result = await window.electronAPI.launchGame({
       gameUrl: game.url,
       gameName: game.name,
       scripts: profile.scripts || []
     });
+    
+    if (!result.success) {
+      alert(result.error || 'Failed to launch game');
+    }
   } catch (error) {
-    alert('Failed to launch: ' + error.message);
+    alert('Launch error: ' + error.message);
   }
 }
 
@@ -398,7 +490,14 @@ function addGame() {
       return;
     }
     
-    const id = name.toLowerCase().replace(/\s+/g, '-');
+    const id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    
+    // Check for duplicate ID
+    if (appState.games.find(g => g.id === id)) {
+      alert('A game with this ID already exists');
+      return;
+    }
+    
     appState.games.push({ id, name, url });
     
     // Create default profile for new game
@@ -421,20 +520,20 @@ function renameProfileFromList(profileId) {
   const profile = gameProfiles[profileId];
   
   if (profile.locked) {
-    alert('This profile cannot be renamed');
+    alert('このプロファイルは名前を変更できません');
     return;
   }
   
-  showModal('Rename Profile', `
+  showModal('プロファイル名を変更', `
     <div class="form-group">
-      <label class="form-label">New Name</label>
+      <label class="form-label">新しい名前</label>
       <input type="text" class="form-input" id="profile-name" value="${profile.name}">
     </div>
   `, () => {
     const name = document.getElementById('profile-name').value.trim();
     
     if (!name) {
-      alert('Please enter a name');
+      alert('名前を入力してください');
       return;
     }
     
@@ -451,11 +550,11 @@ function deleteProfileFromList(profileId) {
   const profile = gameProfiles[profileId];
   
   if (profile.locked) {
-    alert('This profile cannot be deleted');
+    alert('このプロファイルは削除できません');
     return;
   }
   
-  if (!confirm(`Are you sure you want to delete profile "${profile.name}"?`)) {
+  if (!confirm(`プロファイル "${profile.name}" を削除してもよろしいですか？`)) {
     return;
   }
   
@@ -487,7 +586,7 @@ function addProfile() {
     }
     
     const gameProfiles = getCurrentGameProfiles();
-    const id = Date.now().toString();
+    const id = `profile_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     gameProfiles[id] = {
       name,
       locked: false,
@@ -594,7 +693,7 @@ function parseScriptMetadata(code) {
 // Add script
 function addScript() {
   if (!appState.viewingProfile) {
-    alert('Please select a profile first');
+    alert('最初にプロファイルを選択してください');
     return;
   }
   
@@ -602,20 +701,20 @@ function addScript() {
   const profile = gameProfiles[appState.viewingProfile];
   
   if (profile.locked) {
-    alert('This profile cannot be edited');
+    alert('このプロファイルは編集できません');
     return;
   }
   
-  showModal('Add Script', `
+  showModal('スクリプトを追加', `
     <div class="form-group">
-      <label class="form-label">Script Code</label>
-      <textarea class="form-textarea" id="script-code" placeholder="// ==UserScript==&#10;// @name         My Script&#10;// @version      1.0&#10;// @description  Script description&#10;// @updateURL    https://example.com/script.js&#10;// ==/UserScript==&#10;&#10;console.log('Hello');"></textarea>
+      <label class="form-label">スクリプトコード</label>
+      <textarea class="form-textarea" id="script-code" placeholder="// ==UserScript==&#10;// @name         マイスクリプト&#10;// @version      1.0&#10;// @description  スクリプトの説明&#10;// @updateURL    https://example.com/script.js&#10;// ==/UserScript==&#10;&#10;console.log('Hello');"></textarea>
     </div>
   `, () => {
     const code = document.getElementById('script-code').value.trim();
     
     if (!code) {
-      alert('Please enter script code');
+      alert('スクリプトコードを入力してください');
       return;
     }
     
@@ -634,7 +733,7 @@ function addScript() {
 // Import script from URL
 function importScriptFromUrl() {
   if (!appState.viewingProfile) {
-    alert('Please select a profile first');
+    alert('最初にプロファイルを選択してください');
     return;
   }
   
@@ -642,20 +741,20 @@ function importScriptFromUrl() {
   const profile = gameProfiles[appState.viewingProfile];
   
   if (profile.locked) {
-    alert('This profile cannot be edited');
+    alert('このプロファイルは編集できません');
     return;
   }
   
-  showModal('Import Script from URL', `
+  showModal('URLからスクリプトをインポート', `
     <div class="form-group">
-      <label class="form-label">Script URL</label>
+      <label class="form-label">スクリプトURL</label>
       <input type="text" class="form-input" id="script-url" placeholder="https://example.com/script.js">
     </div>
   `, async () => {
     const url = document.getElementById('script-url').value.trim();
     
     if (!url) {
-      alert('Please enter a URL');
+      alert('URLを入力してください');
       return;
     }
     
@@ -671,7 +770,7 @@ function importScriptFromUrl() {
       renderUserscripts();
       renderProfiles();
     } catch (error) {
-      alert('Failed to fetch script: ' + error.message);
+      alert('スクリプトの取得に失敗しました: ' + error.message);
     }
   });
 }

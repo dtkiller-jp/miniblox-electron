@@ -77,18 +77,16 @@
   <div class="status-text" id="status-text">Initializing...</div>
   
   <script>
-    const { ipcRenderer } = require('electron');
-    
     const gameName = document.getElementById('game-name');
     const progressBar = document.getElementById('progress-bar');
     const statusText = document.getElementById('status-text');
     
-    ipcRenderer.on('loading-progress', (event, data) => {
+    window.electronAPI.onLoadingProgress((data) => {
       progressBar.style.width = data.progress + '%';
       statusText.textContent = data.status;
     });
     
-    ipcRenderer.on('game-name', (event, name) => {
+    window.electronAPI.onGameName((name) => {
       gameName.textContent = name;
     });
   </script>

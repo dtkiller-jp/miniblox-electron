@@ -17,10 +17,19 @@ const defaultConfig = {
     { id: 'bloxd', name: 'Bloxd', url: 'https://bloxd.io' }
   ],
   profiles: {
-    default: {
-      name: 'default',
-      locked: true,
-      scripts: []
+    miniblox: {
+      default: {
+        name: 'default',
+        locked: true,
+        scripts: []
+      }
+    },
+    bloxd: {
+      default: {
+        name: 'default',
+        locked: true,
+        scripts: []
+      }
     }
   }
 };
@@ -77,27 +86,35 @@ function createSelectorWindow() {
   });
 }
 
+// Helper function to fetch from URL with redirect support
+function fetchFromUrl(url) {
+  return new Promise((resolve, reject) => {
+    const protocol = url.startsWith('https') ? https : http;
+    protocol.get(url, (res) => {
+      // Handle redirects
+      if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
+        if (res.headers.location) {
+          fetchFromUrl(res.headers.location).then(resolve).catch(reject);
+          return;
+        }
+      }
+      
+      if (res.statusCode !== 200) {
+        reject(new Error(`HTTP ${res.statusCode}`));
+        return;
+      }
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve(data));
+    }).on('error', reject);
+  });
+}
+
 // Create main window
 function createMainWindow(gameUrl, scripts, gameName) {
   console.log('Creating main window for:', gameUrl);
   console.log('Game name:', gameName);
   console.log('Scripts:', scripts.length);
-  
-  // Function to fetch @require scripts
-  const fetchRequire = (url) => {
-    return new Promise((resolve, reject) => {
-      const protocol = url.startsWith('https') ? https : http;
-      protocol.get(url, (res) => {
-        if (res.statusCode !== 200) {
-          reject(new Error(`HTTP ${res.statusCode}`));
-          return;
-        }
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => resolve(data));
-      }).on('error', reject);
-    });
-  };
   
   // Parse metadata and fetch @require scripts
   const processScripts = async () => {
@@ -127,7 +144,7 @@ function createMainWindow(gameUrl, scripts, gameName) {
       for (const requireUrl of requires) {
         try {
           console.log(`Fetching @require: ${requireUrl}`);
-          const requireCode = await fetchRequire(requireUrl);
+          const requireCode = await fetchFromUrl(requireUrl);
           console.log(`Fetched @require, length: ${requireCode.length}`);
           combinedScript += `\n// @require: ${requireUrl}\n`;
           combinedScript += requireCode + '\n';
@@ -142,8 +159,8 @@ function createMainWindow(gameUrl, scripts, gameName) {
     
     console.log('Combined script total length:', combinedScript.length);
     
-    // Save to temporary file
-    const tempScriptPath = path.join(app.getPath('temp'), 'userscripts.js');
+    // Save to temporary file with unique name
+    const tempScriptPath = path.join(app.getPath('temp'), `userscripts-${Date.now()}.js`);
     fs.writeFileSync(tempScriptPath, combinedScript, 'utf8');
     console.log('Scripts saved to:', tempScriptPath);
     
@@ -155,12 +172,35 @@ function createMainWindow(gameUrl, scripts, gameName) {
     createMainWindowWithScript(gameUrl, gameName, tempScriptPath);
   }).catch(error => {
     console.error('Failed to process scripts:', error);
+    // Show error to user
+    const { dialog } = require('electron');
+    dialog.showErrorBox('Script Processing Error', `Failed to process scripts: ${error.message}`);
   });
+}
+
+// Helper to safely send to window
+function safeSend(window, channel, data) {
+  if (window && !window.isDestroyed()) {
+    const contents = window.webContents;
+    if (contents && !contents.isDestroyed()) {
+      contents.send(channel, data);
+      return true;
+    }
+  }
+  return false;
 }
 
 // Create main window with processed script
 function createMainWindowWithScript(gameUrl, gameName, tempScriptPath) {
   let progressTimeout = null;
+  
+  // Cleanup function for timeout
+  const cleanupTimeout = () => {
+    if (progressTimeout) {
+      clearTimeout(progressTimeout);
+      progressTimeout = null;
+    }
+  };
   
   // Loading window
   const loadingWindow = new BrowserWindow({
@@ -170,8 +210,9 @@ function createMainWindowWithScript(gameUrl, gameName, tempScriptPath) {
     transparent: true,
     alwaysOnTop: true,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'loading-preload.js')
     }
   });
   
@@ -179,9 +220,7 @@ function createMainWindowWithScript(gameUrl, gameName, tempScriptPath) {
   
   // Send game name to loading window
   loadingWindow.webContents.on('did-finish-load', () => {
-    if (loadingWindow && !loadingWindow.isDestroyed() && loadingWindow.webContents && !loadingWindow.webContents.isDestroyed()) {
-      loadingWindow.webContents.send('game-name', gameName);
-    }
+    safeSend(loadingWindow, 'game-name', gameName);
   });
   
   // Main window
@@ -201,57 +240,82 @@ function createMainWindowWithScript(gameUrl, gameName, tempScriptPath) {
   });
 
   let loadingProgress = 0;
+  let hasShownWindow = false;
+  
+  // Function to show main window
+  const showMainWindow = () => {
+    if (hasShownWindow) return;
+    hasShownWindow = true;
+    
+    cleanupTimeout();
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show();
+      }
+      if (loadingWindow && !loadingWindow.isDestroyed()) {
+        loadingWindow.close();
+      }
+    }, 500);
+  };
   
   // Monitor console messages
   mainWindow.webContents.on('console-message', (_event, _level, message) => {
     console.log('Console:', message);
     
-    // Generic loading detection
-    if ((message.includes('Loading') || message.includes('loading')) && loadingProgress < 33) {
+    // Miniblox-specific detection
+    if (message.includes('Loading textures') && loadingProgress < 33) {
       loadingProgress = 33;
-      if (progressTimeout) clearTimeout(progressTimeout);
-      if (loadingWindow && !loadingWindow.isDestroyed() && loadingWindow.webContents && !loadingWindow.webContents.isDestroyed()) {
-        loadingWindow.webContents.send('loading-progress', {
-          progress: loadingProgress,
-          status: 'Loading...'
-        });
-      }
+      cleanupTimeout();
+      safeSend(loadingWindow, 'loading-progress', {
+        progress: loadingProgress,
+        status: 'Loading textures...'
+      });
+    } else if (message.includes('Initializing graphics') && loadingProgress < 66) {
+      loadingProgress = 66;
+      cleanupTimeout();
+      safeSend(loadingWindow, 'loading-progress', {
+        progress: loadingProgress,
+        status: 'Initializing graphics...'
+      });
+    } else if (message.includes('Initialized game in') && loadingProgress < 100) {
+      loadingProgress = 100;
+      safeSend(loadingWindow, 'loading-progress', {
+        progress: loadingProgress,
+        status: 'Ready!'
+      });
+      showMainWindow();
+    }
+    // Generic loading detection for other games
+    else if ((message.includes('Loading') || message.includes('loading')) && loadingProgress < 33) {
+      loadingProgress = 33;
+      cleanupTimeout();
+      safeSend(loadingWindow, 'loading-progress', {
+        progress: loadingProgress,
+        status: 'Loading...'
+      });
     } else if ((message.includes('Initializing') || message.includes('initializing') || message.includes('Init')) && loadingProgress < 66) {
       loadingProgress = 66;
-      if (progressTimeout) clearTimeout(progressTimeout);
-      if (loadingWindow && !loadingWindow.isDestroyed() && loadingWindow.webContents && !loadingWindow.webContents.isDestroyed()) {
-        loadingWindow.webContents.send('loading-progress', {
-          progress: loadingProgress,
-          status: 'Initializing...'
-        });
-      }
+      cleanupTimeout();
+      safeSend(loadingWindow, 'loading-progress', {
+        progress: loadingProgress,
+        status: 'Initializing...'
+      });
     } else if (message.includes('Ready') || message.includes('Initialized') || message.includes('Complete') || message.includes('loaded')) {
       loadingProgress = 100;
-      if (progressTimeout) clearTimeout(progressTimeout);
-      if (loadingWindow && !loadingWindow.isDestroyed() && loadingWindow.webContents && !loadingWindow.webContents.isDestroyed()) {
-        loadingWindow.webContents.send('loading-progress', {
-          progress: loadingProgress,
-          status: 'Ready!'
-        });
-      }
-      
-      setTimeout(() => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.show();
-        }
-        if (loadingWindow && !loadingWindow.isDestroyed()) {
-          loadingWindow.close();
-        }
-      }, 500);
+      safeSend(loadingWindow, 'loading-progress', {
+        progress: loadingProgress,
+        status: 'Ready!'
+      });
+      showMainWindow();
     }
   });
 
   console.log('Loading URL:', gameUrl);
   mainWindow.loadURL(gameUrl);
 
-  mainWindow.on('closed', () => {
-    console.log('Main window closed');
-    mainWindow = null;
+  // Cleanup function
+  const cleanup = () => {
+    cleanupTimeout();
     if (loadingWindow && !loadingWindow.isDestroyed()) {
       loadingWindow.close();
     }
@@ -259,133 +323,94 @@ function createMainWindowWithScript(gameUrl, gameName, tempScriptPath) {
     try {
       if (fs.existsSync(tempScriptPath)) {
         fs.unlinkSync(tempScriptPath);
+        console.log('Temp file deleted:', tempScriptPath);
       }
     } catch (e) {
       console.error('Failed to delete temp file:', e);
     }
+  };
+  
+  mainWindow.on('closed', () => {
+    console.log('Main window closed');
+    mainWindow = null;
+    cleanup();
+  });
+  
+  loadingWindow.on('closed', () => {
+    cleanupTimeout();
   });
   
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
     console.error('Failed to load:', errorCode, errorDescription);
-    if (loadingWindow && !loadingWindow.isDestroyed() && loadingWindow.webContents && !loadingWindow.webContents.isDestroyed()) {
-      loadingWindow.webContents.send('loading-progress', {
-        progress: 0,
-        status: 'Failed to load'
-      });
-    }
+    safeSend(loadingWindow, 'loading-progress', {
+      progress: 0,
+      status: 'Failed to load'
+    });
   });
   
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('Page loaded successfully');
     if (loadingProgress === 0) {
       loadingProgress = 10;
-      if (loadingWindow && !loadingWindow.isDestroyed() && loadingWindow.webContents && !loadingWindow.webContents.isDestroyed()) {
-        loadingWindow.webContents.send('loading-progress', {
-          progress: 10,
-          status: 'Page loaded...'
-        });
-      }
+      safeSend(loadingWindow, 'loading-progress', {
+        progress: 10,
+        status: 'Page loaded...'
+      });
       
-      // Automatically show after 5 seconds if no progress
-      if (progressTimeout) clearTimeout(progressTimeout);
+      // Automatically show after 8 seconds if no progress
+      cleanupTimeout();
       progressTimeout = setTimeout(() => {
-        if (loadingProgress < 100) {
+        if (loadingProgress < 100 && !hasShownWindow) {
           loadingProgress = 100;
-          if (loadingWindow && !loadingWindow.isDestroyed() && loadingWindow.webContents && !loadingWindow.webContents.isDestroyed()) {
-            loadingWindow.webContents.send('loading-progress', {
-              progress: 100,
-              status: 'Ready!'
-            });
-          }
-          setTimeout(() => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.show();
-            }
-            if (loadingWindow && !loadingWindow.isDestroyed()) {
-              loadingWindow.close();
-            }
-          }, 300);
+          safeSend(loadingWindow, 'loading-progress', {
+            progress: 100,
+            status: 'Ready!'
+          });
+          showMainWindow();
         }
-      }, 5000);
+      }, 8000);
     }
   });
 }
 
 // Fetch script
-function fetchScript(url) {
-  return new Promise((resolve, reject) => {
-    const protocol = url.startsWith('https') ? https : http;
+async function fetchScript(url) {
+  try {
+    const code = await fetchFromUrl(url);
     
-    protocol.get(url, (res) => {
-      if (res.statusCode !== 200) {
-        reject(new Error(`HTTP ${res.statusCode}`));
-        return;
-      }
-      
-      let code = '';
-      res.on('data', (chunk) => {
-        code += chunk;
-      });
-      
-      res.on('end', () => {
-        // Parse metadata
-        const nameMatch = code.match(/@name\s+(.+)/);
-        const versionMatch = code.match(/@version\s+(.+)/);
-        const updateUrlMatch = code.match(/@updateURL\s+(.+)/);
-        
-        resolve({
-          name: nameMatch ? nameMatch[1].trim() : 'Unnamed Script',
-          version: versionMatch ? versionMatch[1].trim() : '1.0',
-          updateUrl: updateUrlMatch ? updateUrlMatch[1].trim() : url,
-          code: code
-        });
-      });
-    }).on('error', (error) => {
-      reject(error);
-    });
-  });
+    // Parse metadata
+    const nameMatch = code.match(/@name\s+(.+)/);
+    const versionMatch = code.match(/@version\s+(.+)/);
+    const updateUrlMatch = code.match(/@updateURL\s+(.+)/);
+    
+    return {
+      name: nameMatch ? nameMatch[1].trim() : 'Unnamed Script',
+      version: versionMatch ? versionMatch[1].trim() : '1.0',
+      updateUrl: updateUrlMatch ? updateUrlMatch[1].trim() : url,
+      code: code
+    };
+  } catch (error) {
+    throw new Error(`Failed to fetch script: ${error.message}`);
+  }
 }
 
 // Import profile
 async function importProfile(source) {
-  return new Promise((resolve, reject) => {
+  try {
+    let data;
     if (source.startsWith('http://') || source.startsWith('https://')) {
       // Fetch from URL
-      const protocol = source.startsWith('https') ? https : http;
-      
-      protocol.get(source, (res) => {
-        if (res.statusCode !== 200) {
-          reject(new Error(`HTTP ${res.statusCode}`));
-          return;
-        }
-        
-        let data = '';
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
-        
-        res.on('end', () => {
-          try {
-            const profile = JSON.parse(data);
-            resolve(profile);
-          } catch (error) {
-            reject(new Error('Invalid JSON'));
-          }
-        });
-      }).on('error', (error) => {
-        reject(error);
-      });
+      data = await fetchFromUrl(source);
     } else {
       // Fetch from local file
-      try {
-        const data = fs.readFileSync(source, 'utf8');
-        const profile = JSON.parse(data);
-        resolve(profile);
-      } catch (error) {
-        reject(error);
-      }
+      data = fs.readFileSync(source, 'utf8');
     }
-  });
+    
+    const profile = JSON.parse(data);
+    return profile;
+  } catch (error) {
+    throw new Error(`Failed to import profile: ${error.message}`);
+  }
 }
 
 app.whenReady().then(() => {
@@ -429,7 +454,41 @@ ipcMain.handle('launch-game', (_event, data) => {
     return { success: true };
   } catch (error) {
     console.error('Error launching game:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: `Failed to launch game: ${error.message}` };
+  }
+});
+
+ipcMain.handle('delete-game', (_event, gameId) => {
+  try {
+    const config = loadConfig();
+    config.games = config.games.filter(g => g.id !== gameId);
+    
+    // Also delete associated profiles
+    if (config.profiles[gameId]) {
+      delete config.profiles[gameId];
+    }
+    
+    saveConfig(config);
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting game:', error);
+    return { success: false, error: `Failed to delete game: ${error.message}` };
+  }
+});
+
+ipcMain.handle('export-profile', (_event, gameId, profileId) => {
+  try {
+    const config = loadConfig();
+    const profile = config.profiles[gameId]?.[profileId];
+    
+    if (!profile) {
+      throw new Error('Profile not found');
+    }
+    
+    return { success: true, data: JSON.stringify(profile, null, 2) };
+  } catch (error) {
+    console.error('Error exporting profile:', error);
+    return { success: false, error: `Failed to export profile: ${error.message}` };
   }
 });
 
