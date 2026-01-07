@@ -70,7 +70,7 @@
   </style>
 </head>
 <body>
-  <div class="logo">Impact v6</div>
+  <div class="logo" id="game-name">Loading...</div>
   <div class="progress-container">
     <div class="progress-bar" id="progress-bar"></div>
   </div>
@@ -79,12 +79,17 @@
   <script>
     const { ipcRenderer } = require('electron');
     
+    const gameName = document.getElementById('game-name');
     const progressBar = document.getElementById('progress-bar');
     const statusText = document.getElementById('status-text');
     
     ipcRenderer.on('loading-progress', (event, data) => {
       progressBar.style.width = data.progress + '%';
       statusText.textContent = data.status;
+    });
+    
+    ipcRenderer.on('game-name', (event, name) => {
+      gameName.textContent = name;
     });
   </script>
 </body>

@@ -1,7 +1,7 @@
 {
-  "name": "miniblox-app",
-  "version": "1.0.1",
-  "description": "miniblox.io Electron App with userscript injection",
+  "name": "game-launcher",
+  "version": "2.0.0",
+  "description": "Universal Game Launcher with userscript support",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -10,7 +10,7 @@
     "build:mac": "electron-builder --mac",
     "build:linux": "electron-builder --linux"
   },
-  "keywords": [],
+  "keywords": ["game", "launcher", "userscript"],
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -18,8 +18,8 @@
     "electron-builder": "^24.9.1"
   },
   "build": {
-    "appId": "com.miniblox.impact",
-    "productName": "Miniblox Impact",
+    "appId": "com.gamelauncher.app",
+    "productName": "Game Launcher",
     "directories": {
       "output": "dist"
     },
@@ -30,7 +30,6 @@
       "selector-renderer.js",
       "selector.html",
       "loading.html",
-      "versions.json",
       "package.json"
     ],
     "win": {
@@ -48,7 +47,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Miniblox Impact",
+      "shortcutName": "Game Launcher",
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true
     },

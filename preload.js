@@ -2,7 +2,6 @@ const fs = require('fs');
 
 console.log('Preload script started');
 
-// Get script path from command line arguments
 const scriptPathArg = process.argv.find(arg => arg.startsWith('--userscript-path='));
 
 if (scriptPathArg) {
@@ -10,123 +9,105 @@ if (scriptPathArg) {
   console.log('Script path detected:', scriptPath);
   
   try {
-    // Read script content
-    const scriptContent = fs.readFileSync(scriptPath, 'utf8');
-    console.log('Script content loaded, length:', scriptContent.length);
+    const combinedScriptContent = fs.readFileSync(scriptPath, 'utf8');
+    console.log('Script content loaded, length:', combinedScriptContent.length);
     
-    // Define userscript manager APIs
-    window.unsafeWindow = window;
+    const scriptSections = [];
+    const lines = combinedScriptContent.split('\n');
+    let currentScript = null;
     
-    // GM storage using localStorage
-    const GM_STORAGE_PREFIX = 'gm_';
-    
-    window.GM_getValue = function(key, defaultValue) {
-      try {
-        const value = localStorage.getItem(GM_STORAGE_PREFIX + key);
-        return value !== null ? JSON.parse(value) : defaultValue;
-      } catch (e) {
-        console.error('GM_getValue error:', e);
-        return defaultValue;
-      }
-    };
-    
-    window.GM_setValue = function(key, value) {
-      try {
-        localStorage.setItem(GM_STORAGE_PREFIX + key, JSON.stringify(value));
-      } catch (e) {
-        console.error('GM_setValue error:', e);
-      }
-    };
-    
-    window.GM_deleteValue = function(key) {
-      try {
-        localStorage.removeItem(GM_STORAGE_PREFIX + key);
-      } catch (e) {
-        console.error('GM_deleteValue error:', e);
-      }
-    };
-    
-    window.GM_listValues = function() {
-      try {
-        const keys = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith(GM_STORAGE_PREFIX)) {
-            keys.push(key.substring(GM_STORAGE_PREFIX.length));
-          }
-        }
-        return keys;
-      } catch (e) {
-        console.error('GM_listValues error:', e);
-        return [];
-      }
-    };
-    
-    window.GM_info = {
-      script: {
-        name: 'Miniblox Impact',
-        version: '6.0.0'
-      },
-      scriptHandler: 'Electron App',
-      version: '1.0.0'
-    };
-    
-    window.GM_xmlhttpRequest = function(details) {
-      const xhr = new XMLHttpRequest();
-      xhr.open(details.method || 'GET', details.url);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const match = line.match(/^\/\/ ===== Script \d+: (.+?) =====$/);
       
-      if (details.headers) {
-        Object.keys(details.headers).forEach(key => {
-          xhr.setRequestHeader(key, details.headers[key]);
+      if (match) {
+        if (currentScript) {
+          scriptSections.push(currentScript);
+        }
+        currentScript = { name: match[1], content: '' };
+      } else if (currentScript) {
+        currentScript.content += line + '\n';
+      }
+    }
+    
+    if (currentScript) {
+      currentScript.content = currentScript.content.trim();
+      scriptSections.push(currentScript);
+    }
+    
+    console.log('Found', scriptSections.length, 'scripts');
+    
+    const scriptsWithMetadata = scriptSections.map(section => {
+      const metadata = { name: section.name, runAt: 'document-end' };
+      
+      const metaBlock = section.content.match(/\/\/ ==UserScript==([\s\S]*?)\/\/ ==\/UserScript==/);
+      if (metaBlock) {
+        metaBlock[1].split('\n').forEach(line => {
+          const m = line.match(/\/\/ @run-at\s+(.+)/);
+          if (m) metadata.runAt = m[1].trim();
         });
       }
       
-      xhr.onload = function() {
-        if (details.onload) {
-          details.onload({
-            status: xhr.status,
-            statusText: xhr.statusText,
-            responseText: xhr.responseText,
-            responseHeaders: xhr.getAllResponseHeaders()
-          });
-        }
-      };
-      
-      xhr.onerror = function() {
-        if (details.onerror) details.onerror(xhr);
-      };
-      
-      xhr.send(details.data);
-      return { abort: () => xhr.abort() };
-    };
+      return { metadata, content: section.content };
+    });
     
-    console.log('GM APIs initialized');
-    
-    // Inject script at document-start (as early as possible)
-    const injectScript = () => {
-      try {
-        console.log('Injecting userscript...');
+    const injectScript = (content) => {
+      const target = document.head || document.documentElement;
+      if (target) {
         const script = document.createElement('script');
-        script.textContent = scriptContent;
-        script.type = 'text/javascript';
-        (document.head || document.documentElement || document.body).appendChild(script);
-        console.log('Userscript injected successfully');
-      } catch (e) {
-        console.error('Failed to inject script:', e);
+        script.textContent = content;
+        target.appendChild(script);
       }
     };
     
-    // Try to inject immediately
-    if (document.documentElement) {
-      injectScript();
-    } else {
-      // Wait for document to be ready
-      const checkDocument = setInterval(() => {
-        if (document.documentElement) {
-          clearInterval(checkDocument);
-          injectScript();
+    const gmApi = `(function(){if(!window.GM){const p='gm_';window.GM={getValue:(k,d)=>{try{const v=localStorage.getItem(p+k);return v!==null?JSON.parse(v):d}catch(e){return d}},setValue:(k,v)=>{try{localStorage.setItem(p+k,JSON.stringify(v));return Promise.resolve()}catch(e){return Promise.reject(e)}},deleteValue:(k)=>{try{localStorage.removeItem(p+k);return Promise.resolve()}catch(e){return Promise.reject(e)}},listValues:()=>{try{const k=[];for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(key&&key.startsWith(p))k.push(key.substring(p.length))}return Promise.resolve(k)}catch(e){return Promise.reject(e)}},xmlHttpRequest:(d)=>new Promise((res,rej)=>{const x=new XMLHttpRequest();x.open(d.method||'GET',d.url);if(d.headers)Object.keys(d.headers).forEach(k=>x.setRequestHeader(k,d.headers[k]));x.onload=()=>{const r={status:x.status,statusText:x.statusText,responseText:x.responseText,responseHeaders:x.getAllResponseHeaders()};if(d.onload)d.onload(r);res(r)};x.onerror=()=>{if(d.onerror)d.onerror(x);rej(x)};x.send(d.data)}),info:{script:{name:'Userscript'},scriptHandler:'Electron',version:'1.0'}};window.GM_getValue=GM.getValue;window.GM_setValue=(k,v)=>GM.setValue(k,v);window.GM_deleteValue=(k)=>GM.deleteValue(k);window.GM_listValues=GM.listValues;window.GM_xmlhttpRequest=GM.xmlHttpRequest;window.GM_info=GM.info;window.unsafeWindow=window}})();`;
+    
+    const scriptsByTiming = { 'document-start': [], 'document-body': [], 'document-end': [], 'document-idle': [] };
+    scriptsWithMetadata.forEach(s => scriptsByTiming[s.metadata.runAt].push(s));
+    
+    const inject = (scripts) => scripts.forEach(s => { injectScript(gmApi); injectScript(s.content); });
+    
+    if (scriptsByTiming['document-start'].length > 0) {
+      const waitAndInject = () => {
+        if (document.documentElement && document.head) {
+          // Wait a bit more to ensure DOM is more ready
+          setTimeout(() => inject(scriptsByTiming['document-start']), 10);
+        } else {
+          const obs = new MutationObserver(() => {
+            if (document.documentElement && document.head) {
+              obs.disconnect();
+              setTimeout(() => inject(scriptsByTiming['document-start']), 10);
+            }
+          });
+          obs.observe(document, { childList: true, subtree: true });
+        }
+      };
+      waitAndInject();
+    }
+    
+    if (scriptsByTiming['document-body'].length > 0) {
+      const check = setInterval(() => {
+        if (document.body) {
+          clearInterval(check);
+          inject(scriptsByTiming['document-body']);
         }
       }, 10);
+    }
+    
+    if (scriptsByTiming['document-end'].length > 0) {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => inject(scriptsByTiming['document-end']));
+      } else {
+        inject(scriptsByTiming['document-end']);
+      }
+    }
+    
+    if (scriptsByTiming['document-idle'].length > 0) {
+      if (document.readyState === 'complete') {
+        setTimeout(() => inject(scriptsByTiming['document-idle']), 0);
+      } else {
+        window.addEventListener('load', () => setTimeout(() => inject(scriptsByTiming['document-idle']), 0));
+      }
     }
     
   } catch (error) {

@@ -1,7 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  getVersions: () => ipcRenderer.invoke('get-versions'),
-  updateVersions: (updateUrl) => ipcRenderer.invoke('update-versions', updateUrl),
-  launchApp: (version) => ipcRenderer.invoke('launch-app', version)
+  getConfig: () => ipcRenderer.invoke('get-config'),
+  saveConfig: (config) => ipcRenderer.invoke('save-config', config),
+  launchGame: (data) => ipcRenderer.invoke('launch-game', data),
+  fetchScript: (url) => ipcRenderer.invoke('fetch-script', url),
+  importProfile: (source) => ipcRenderer.invoke('import-profile', source)
 });
