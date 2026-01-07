@@ -1,39 +1,46 @@
-# Game Launcher
+# Web Game Launcher & Mod Manager
 
-汎用的なゲームランチャーアプリケーション。複数のウェブゲームとユーザースクリプト（Tampermonkey/Violentmonkey形式）をサポートします。
+A universal game launcher application that supports multiple web games and userscripts (Tampermonkey/Violentmonkey format).
 
-## 機能
+## Features
 
-### ゲーム管理
-- 複数のウェブゲーム（Miniblox, Bloxd等）をサポート
-- カスタムゲームの追加が可能
-- ゲームごとに異なるプロファイルを使用可能
+### Game Management
+- Support for multiple web games (Miniblox, Bloxd, etc.)
+- Add custom games
+- Use different profiles for each game
+- Delete games with associated profiles
+- Per-game profile isolation
 
-### プロファイル管理
-- 複数のプロファイルを作成・管理
-- プロファイルごとに異なるユーザースクリプトを設定
-- デフォルトプロファイル（削除・編集不可）が標準で用意
-- 外部JSONファイルまたはURLからプロファイルをインポート
+### Profile Management
+- Create and manage multiple profiles
+- Configure different userscripts for each profile
+- Default profile (locked, cannot be deleted or edited)
+- Import profiles from external JSON files or URLs
+- Export profiles as JSON files
+- Rename and delete custom profiles
 
-### ユーザースクリプト
-- Tampermonkey/Violentmonkey互換のユーザースクリプトをサポート
-- スクリプトの追加、編集、削除、名前変更
-- URLから直接スクリプトをインポート
-- メタデータに基づく自動更新機能（@updateURL対応）
+### Userscript & Mod Support
+- Tampermonkey/Violentmonkey compatible userscripts
+- Add, edit, delete, and rename scripts
+- Import scripts directly from URLs
+- Auto-update based on metadata (@updateURL support)
+- @require dependency loading
+- @run-at timing control (document-start, document-body, document-end, document-idle)
+- GM API compatibility (GM.getValue, GM.setValue, GM.xmlHttpRequest, etc.)
 
-## 使い方
+## Installation
 
-### インストール
+### Prerequisites
 ```bash
 npm install
 ```
 
-### 開発モードで起動
+### Development Mode
 ```bash
 npm start
 ```
 
-### ビルド
+### Build
 ```bash
 # Windows
 npm run build:win
@@ -45,38 +52,41 @@ npm run build:mac
 npm run build:linux
 ```
 
-## UI構成
+## UI Overview
 
-### 左パネル
-- **Launcher**: アプリケーションタイトル
-- **ゲームリスト**: 登録されているゲームの一覧
-- **+ ゲームを追加**: 新しいゲームを追加
-- **設定**: アプリケーション設定（今後実装予定）
+### Left Panel
+- **Launcher**: Application title
+- **Game List**: List of registered games with delete buttons
+- **+ Add Game**: Add a new game
+- **Settings**: Application settings (coming soon)
 
-### 右パネル
+### Right Panel
 
-#### Homeタブ
-- ゲーム名の表示
-- プロファイル選択ドロップダウン
-- **Play**ボタン: 選択したゲームとプロファイルで起動
+#### Home Tab
+- Game name display
+- Profile selection dropdown
+- **Play** button: Launch the selected game with the chosen profile
 
-#### Profileタブ
-- **プロファイル管理**
-  - プロファイルの追加
-  - 外部からのプロファイル取り込み
-  - プロファイルの切り替え
+#### Profile Tab
+- **Profile Management**
+  - Add new profiles
+  - Import profiles from external sources
+  - Export profiles as JSON
+  - Rename profiles
+  - Delete profiles
+  - Switch between profiles
   
-- **ユーザースクリプト管理**
-  - スクリプトの追加（手動入力）
-  - URLからスクリプトをインポート
-  - スクリプトの編集
-  - スクリプトの名前変更
-  - スクリプトの削除
-  - スクリプトの更新（@updateURL設定時）
+- **Userscript Management**
+  - Add scripts (manual input)
+  - Import scripts from URL
+  - Edit scripts
+  - Rename scripts
+  - Delete scripts
+  - Update scripts (@updateURL support)
 
-## プロファイルJSON形式
+## Profile JSON Format
 
-外部取り込み用のプロファイルは以下の形式で作成してください：
+For importing profiles, use the following format:
 
 ```json
 {
@@ -92,9 +102,9 @@ npm run build:linux
 }
 ```
 
-## ユーザースクリプト形式
+## Userscript Format
 
-Tampermonkey/Violentmonkey互換のメタデータをサポート：
+Supports Tampermonkey/Violentmonkey compatible metadata:
 
 ```javascript
 // ==UserScript==
@@ -102,18 +112,40 @@ Tampermonkey/Violentmonkey互換のメタデータをサポート：
 // @version      1.0.0
 // @description  Script description
 // @updateURL    https://example.com/script.js
+// @require      https://example.com/library.js
+// @run-at       document-end
 // ==/UserScript==
 
 // Your code here
 console.log('Script loaded');
 ```
 
-## 技術スタック
+### Supported Metadata Tags
+- `@name` - Script name
+- `@version` - Script version
+- `@description` - Script description
+- `@updateURL` - URL for auto-updates
+- `@require` - External script dependencies
+- `@run-at` - Execution timing (document-start, document-body, document-end, document-idle)
+
+## Technical Stack
 
 - Electron 28.0.0
 - Node.js
 - HTML/CSS/JavaScript
 
-## ライセンス
+## Security Features
+
+- Context isolation enabled for renderer processes
+- Secure IPC communication
+- Sandboxed preload scripts
+- HTTP redirect support for script fetching
+
+## Known Limitations
+
+- Settings feature is not yet implemented
+- `webSecurity: false` is intentionally set for game compatibility
+
+## License
 
 MIT
