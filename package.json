@@ -18,8 +18,8 @@
     "electron-builder": "^24.9.1"
   },
   "build": {
-    "appId": "com.gamelauncher.app",
-    "productName": "Game Launcher",
+    "appId": "com.WebGameLauncher.ModManager.app",
+    "productName": "WebGameLauncher-and-ModManage",
     "directories": {
       "output": "dist"
     },
