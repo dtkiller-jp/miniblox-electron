@@ -19,7 +19,7 @@ A universal game launcher application that supports multiple web games and users
 - Export profiles as JSON files
 - Rename and delete custom profiles
 
-### Userscript & Mod Support
+### Userscript Support
 - Tampermonkey/Violentmonkey compatible userscripts
 - Add, edit, delete, and rename scripts
 - Import scripts directly from URLs
